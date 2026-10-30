@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1792527875451,
+      "tag": "0000_dazzling_gertrude_yorkes",
+      "breakpoints": true
+    }
+  ]
+}
