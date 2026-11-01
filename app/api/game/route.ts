@@ -114,6 +114,31 @@ function fail(message: string, status = 400) {
 function current(room: Room) {
   return CHALLENGES.find((q) => q.id === room.challengeId)!;
 }
+function syncAutomaticHints(room: Room) {
+  if (
+    room.phase !== "round" ||
+    room.playType !== "individual" ||
+    !room.roundStartedAt ||
+    current(room).mode !== "city"
+  )
+    return;
+  const total = current(room).hints?.length || 1,
+    interval = room.timerSeconds > 0 ? 5_000 : 10_000,
+    elapsed = Math.max(0, Date.now() - room.roundStartedAt);
+  room.hintCount = Math.min(total, 1 + Math.floor(elapsed / interval));
+}
+function nextHintAt(room: Room) {
+  if (
+    room.phase !== "round" ||
+    room.playType !== "individual" ||
+    !room.roundStartedAt ||
+    current(room).mode !== "city" ||
+    room.hintCount >= (current(room).hints?.length || 1)
+  )
+    return null;
+  const interval = room.timerSeconds > 0 ? 5_000 : 10_000;
+  return room.roundStartedAt + room.hintCount * interval;
+}
 function publicView(room: Room, auth: string) {
   const host = auth === room.hostToken,
     me = room.players.find((p) => p.token === auth) || null,
@@ -130,6 +155,7 @@ function publicView(room: Room, auth: string) {
     rounds: room.rounds,
     timerSeconds: room.timerSeconds ?? 30,
     hintCount: room.hintCount || 1,
+    nextHintAt: room.challengeId ? nextHintAt(room) : null,
     phase: room.phase,
     round: room.round,
     deadline: room.deadline,
@@ -251,6 +277,7 @@ function finishRound(room: Room) {
   room.deadline = null;
 }
 function maybeFinish(room: Room) {
+  syncAutomaticHints(room);
   if (
     room.phase === "round" &&
     ((room.deadline !== null && Date.now() >= room.deadline) ||
@@ -349,7 +376,8 @@ export async function POST(req: NextRequest) {
         .trim(),
       room = await getRoom(roomCode);
     if (!room) return fail("الغرفة غير موجودة", 404);
-    const phaseBeforeCheck = room.phase;
+    const phaseBeforeCheck = room.phase,
+      hintCountBeforeCheck = room.hintCount;
     maybeFinish(room);
     if (action === "join") {
       if (room.phase !== "lobby") return fail("بدأت اللعبة بالفعل", 409);
@@ -385,7 +413,11 @@ export async function POST(req: NextRequest) {
       player = room.players.find((p) => p.token === auth);
     if (!host && !player) return fail("رمز الدخول غير صحيح", 403);
     if (action === "state") {
-      if (phaseBeforeCheck !== room.phase) await save(room);
+      if (
+        phaseBeforeCheck !== room.phase ||
+        hintCountBeforeCheck !== room.hintCount
+      )
+        await save(room);
       return NextResponse.json(publicView(room, auth));
     }
     if (action === "start") {

@@ -48,6 +48,7 @@ type State = {
   rounds: number;
   timerSeconds: number;
   hintCount: number;
+  nextHintAt: number | null;
   phase: "lobby" | "round" | "results" | "finished";
   round: number;
   deadline: number | null;
@@ -111,11 +112,12 @@ const MODE_GUIDES: Record<
     tip: "لا يكفي معرفة الدولة؛ الاقتراب من المدينة يرفع نقاط الدقة.",
   },
   city: {
-    lead: "يبدأ التحدي بتلميح واحد، ويكشف الحكم التلميحات التالية عند الحاجة.",
+    lead:
+      "يبدأ التحدي بتلميح واحد، ثم تظهر التلميحات التالية تدريجيًا بصورة تلقائية في اللعب بالجوال.",
     steps: [
       "ابدأ بالقارة ثم الجهة.",
       "حاول وضع الدبوس داخل الدولة الصحيحة أولًا.",
-      "إذا لم يصب أحد الدولة يفوز الأقرب إلى المدينة.",
+      "لكل لاعب محاولة واحدة نهائية، وإذا لم يصب أحد الدولة يفوز الأقرب إلى المدينة.",
     ],
     tip: "إصابة الدولة شرط التقدم على من وضع دبوسه خارجها.",
   },
@@ -183,7 +185,7 @@ const CONTINENTS = [
   { name: "أوروبا", lat: 52, lng: 17 },
   { name: "أمريكا الشمالية", lat: 42, lng: -105 },
   { name: "أمريكا الجنوبية", lat: -18, lng: -60 },
-  { name: "أوقيانوسيا", lat: -27, lng: 135 },
+  { name: "أستراليا", lat: -27, lng: 135 },
   { name: "القارة القطبية", lat: -76, lng: 15 },
 ];
 
@@ -215,8 +217,8 @@ function FlatFallback({
   return (
     <div className="fallback-map" onClick={click}>
       <img
-        src="/assets/political-world.png?v=2"
-        alt="خريطة سياسية واضحة للعالم"
+        src="/assets/terrain-political-world.png?v=3"
+        alt="خريطة تضاريس واضحة للعالم مع حدود الدول"
       />
       <div className="flat-continent-labels" aria-hidden="true">
         {CONTINENTS.map((continent) => (
@@ -330,6 +332,8 @@ function GeoMap({
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.setClearColor(0x02070d, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.16;
     renderer.domElement.className = "globe-canvas";
     host.appendChild(renderer.domElement);
     camera.position.set(0, 0, 2.75);
@@ -343,24 +347,45 @@ function GeoMap({
     controls.zoomSpeed = 0.8;
     controls.touches.ONE = THREE.TOUCH.ROTATE;
     controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
-    scene.add(new THREE.AmbientLight(0xffffff, 2));
-    const texture = new THREE.TextureLoader().load(
-      "/assets/political-world.png?v=2",
-      () => setReady(true),
+    const hemisphere = new THREE.HemisphereLight(0xc8f2ff, 0x031018, 1.15),
+      sun = new THREE.DirectionalLight(0xfff4dc, 2.8),
+      rim = new THREE.DirectionalLight(0x47cfff, 1.25);
+    sun.position.set(-3.5, 2.7, 4.5);
+    rim.position.set(4, -1.5, -3);
+    scene.add(hemisphere, sun, rim);
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.onLoad = () => setReady(true);
+    const textureLoader = new THREE.TextureLoader(loadingManager);
+    const texture = textureLoader.load(
+      "/assets/terrain-political-world.png?v=3",
     );
+    const reliefTexture = textureLoader.load("/assets/terrain-relief.png?v=3");
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    reliefTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     const earth = new THREE.Mesh(
       new THREE.SphereGeometry(1, 128, 80),
-      new THREE.MeshBasicMaterial({ map: texture, color: 0xffffff }),
+      new THREE.MeshStandardMaterial({
+        map: texture,
+        bumpMap: reliefTexture,
+        bumpScale: 0.085,
+        displacementMap: reliefTexture,
+        displacementScale: 0.026,
+        displacementBias: -0.007,
+        roughness: 0.8,
+        metalness: 0.025,
+        emissive: new THREE.Color(0x02090d),
+        emissiveIntensity: 0.1,
+      }),
     );
+    earth.rotation.y = -0.02;
     scene.add(earth);
     const atmosphere = new THREE.Mesh(
       new THREE.SphereGeometry(1.025, 96, 64),
       new THREE.MeshBasicMaterial({
         color: 0x51c9f2,
         transparent: true,
-        opacity: 0.08,
+      opacity: 0.12,
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
       }),
@@ -495,6 +520,24 @@ function GeoMap({
         camera.lookAt(0, 0, 0);
         if (raw >= 1) cameraTween = null;
       }
+      markerGroup.children.forEach((item: any) => {
+        const route = item.userData?.routePoints as
+          | THREE.Vector3[]
+          | undefined;
+        if (!route?.length) return;
+        const progress =
+            ((performance.now() - item.userData.startedAt) % 1900) / 1900,
+          scaled = progress * (route.length - 1),
+          index = Math.min(route.length - 2, Math.floor(scaled)),
+          fraction = scaled - index,
+          position = route[index].clone().lerp(route[index + 1], fraction),
+          tangent = route[index + 1].clone().sub(route[index]).normalize();
+        item.position.copy(position);
+        item.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          tangent,
+        );
+      });
       controls.update();
       stars.rotation.y += 0.00008;
       renderer.render(scene, camera);
@@ -516,6 +559,7 @@ function GeoMap({
       renderer.domElement.removeEventListener("pointerup", up);
       controls.dispose();
       texture.dispose();
+      reliefTexture.dispose();
       earth.geometry.dispose();
       (earth.material as THREE.Material).dispose();
       atmosphere.geometry.dispose();
@@ -619,6 +663,12 @@ function GeoMap({
       addMarker(correct.lat, correct.lng, "#ffffff", 0.05);
       pins.forEach((p) => {
         addMarker(p.lat, p.lng, p.color, 0.035);
+        const focused =
+          cinematicFromLat !== undefined &&
+          cinematicFromLng !== undefined &&
+          Math.abs(p.lat - cinematicFromLat) < 0.0001 &&
+          Math.abs(p.lng - cinematicFromLng) < 0.0001;
+        if (cinematicStage && cinematicStage !== "free" && !focused) return;
         const from = globePoint(p.lat, p.lng, 1.018),
           to = globePoint(correct.lat, correct.lng, 1.018),
           points = [];
@@ -631,15 +681,35 @@ function GeoMap({
               .multiplyScalar(1.018 + Math.sin(Math.PI * t) * 0.08),
           );
         }
-        const line = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints(points),
-          new THREE.LineBasicMaterial({
-            color: new THREE.Color(p.color),
-            transparent: true,
-            opacity: 0.85,
-          }),
-        );
-        markerGroup.add(line);
+        if (focused && cinematicStage && cinematicStage !== "free") {
+          const curve = new THREE.CatmullRomCurve3(points),
+            routePoints = curve.getPoints(120),
+            glow = new THREE.Mesh(
+              new THREE.TubeGeometry(curve, 120, 0.008, 8, false),
+              new THREE.MeshBasicMaterial({
+                color: 0xffbe63,
+                transparent: true,
+                opacity: 0.95,
+              }),
+            ),
+            arrow = new THREE.Mesh(
+              new THREE.ConeGeometry(0.027, 0.09, 18),
+              new THREE.MeshBasicMaterial({ color: 0xffe3a6 }),
+            );
+          arrow.userData.routePoints = routePoints;
+          arrow.userData.startedAt = performance.now();
+          markerGroup.add(glow, arrow);
+        } else {
+          const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(points),
+            new THREE.LineBasicMaterial({
+              color: new THREE.Color(p.color),
+              transparent: true,
+              opacity: 0.72,
+            }),
+          );
+          markerGroup.add(line);
+        }
       });
       const key = `${correct.place}:${correct.lat}:${correct.lng}`;
       if (!cinematicStage && centeredFor.current !== key) {
@@ -649,7 +719,15 @@ function GeoMap({
         centeredFor.current = key;
       }
     }
-  }, [ready, pick, pins, correct, cinematicStage]);
+  }, [
+    ready,
+    pick,
+    pins,
+    correct,
+    cinematicStage,
+    cinematicFromLat,
+    cinematicFromLng,
+  ]);
   useEffect(() => {
     if (
       !ready ||
@@ -855,6 +933,19 @@ function HintsStage({
   state: State;
   api: (a: string, d?: any) => Promise<any>;
 }) {
+  const [hintLeft, setHintLeft] = useState(0),
+    automatic = state.playType === "individual";
+  useEffect(() => {
+    if (!state.nextHintAt) {
+      setHintLeft(0);
+      return;
+    }
+    const update = () =>
+      setHintLeft(Math.max(0, Math.ceil((state.nextHintAt! - Date.now()) / 1000)));
+    update();
+    const timer = setInterval(update, 250);
+    return () => clearInterval(timer);
+  }, [state.nextHintAt]);
   return (
     <div className="hints-stage">
       <span className="eyebrow">اكتشف المدينة</span>
@@ -862,13 +953,28 @@ function HintsStage({
       <div className="country-rule">
         يجب أن يكون الدبوس داخل الدولة الصحيحة على الأقل
       </div>
+      <div className="single-attempt-rule">
+        محاولة واحدة فقط لكل {state.playType === "teams" ? "مجموعة" : "لاعب"}
+        ؛ بعد تثبيت الدبوس لا يمكن تغييره
+      </div>
       {state.challenge.hints.map((h: string, i: number) => (
         <article key={i} className="hint">
           <i>{i + 1}</i>
           <p>{h}</p>
         </article>
       ))}
-      {state.host && (
+      {automatic && state.hintCount < 4 && (
+        <div className="hint-auto-clock" aria-live="polite">
+          <i>{hintLeft}</i>
+          <span>
+            التلميح التالي يظهر تلقائيًا
+            <small>
+              كل {state.timerSeconds > 0 ? "5" : "10"} ثوانٍ
+            </small>
+          </span>
+        </div>
+      )}
+      {!automatic && state.host && (
         <button
           className="primary next-hint"
           disabled={state.hintCount >= 4}
@@ -1406,9 +1512,9 @@ function Game({
       return;
     }
     setRoundRevealStage("locating");
-    const travel = setTimeout(() => setRoundRevealStage("travelling"), 1100);
-    const score = setTimeout(() => setRoundRevealStage("score"), 3500);
-    const free = setTimeout(() => setRoundRevealStage("free"), 5800);
+    const travel = setTimeout(() => setRoundRevealStage("travelling"), 900);
+    const score = setTimeout(() => setRoundRevealStage("score"), 2900);
+    const free = setTimeout(() => setRoundRevealStage("free"), 4800);
     return () => {
       clearTimeout(travel);
       clearTimeout(score);
@@ -1840,28 +1946,33 @@ function Game({
             }}
           />
           {best && roundRevealStage !== "free" && (
-            <div className={`result-cinematic ${roundRevealStage}`}>
+            <div className={`nearest-reveal ${roundRevealStage}`}>
               {roundRevealStage === "locating" && (
                 <>
-                  <span>أقرب دبوس</span>
-                  <h2>{best.name}</h2>
-                  <small>جارٍ تحديد مساره إلى الموقع الصحيح…</small>
+                  <i className="nearest-arrow-icon">➜</i>
+                  <div>
+                    <span>أقرب دبوس</span>
+                    <h2>{best.name}</h2>
+                  </div>
                 </>
               )}
               {roundRevealStage === "travelling" && (
                 <>
-                  <span className="moving-pin">⌖</span>
-                  <h2>إلى الموقع الصحيح</h2>
-                  <small>{state.challenge.place}</small>
+                  <i className="nearest-arrow-icon flying">➜</i>
+                  <div>
+                    <span>السهم يتجه إلى الموقع الصحيح</span>
+                    <h2>{best.name}</h2>
+                  </div>
                 </>
               )}
               {roundRevealStage === "score" && (
                 <>
-                  <span>المسافة</span>
-                  <h2>{best.distance.toLocaleString("ar-SA")} كم</h2>
-                  <strong>
-                    +{best.points} {best.points === 1 ? "نقطة" : "نقاط"}
-                  </strong>
+                  <i className="nearest-arrow-icon done">✓</i>
+                  <div>
+                    <span>{best.name} هو الأقرب</span>
+                    <h2>{best.distance.toLocaleString("ar-SA")} كم</h2>
+                    <strong>+{best.points} {best.points === 1 ? "نقطة" : "نقاط"}</strong>
+                  </div>
                 </>
               )}
             </div>
