@@ -185,7 +185,7 @@ const CONTINENTS = [
   { name: "أوروبا", lat: 52, lng: 17 },
   { name: "أمريكا الشمالية", lat: 42, lng: -105 },
   { name: "أمريكا الجنوبية", lat: -18, lng: -60 },
-  { name: "أوقيانوسيا", lat: -27, lng: 135 },
+  { name: "أستراليا", lat: -27, lng: 135 },
   { name: "القارة القطبية", lat: -76, lng: 15 },
 ];
 
@@ -217,8 +217,8 @@ function FlatFallback({
   return (
     <div className="fallback-map" onClick={click}>
       <img
-        src="/assets/political-world.png?v=2"
-        alt="خريطة سياسية واضحة للعالم"
+        src="/assets/terrain-political-world.png?v=3"
+        alt="خريطة تضاريس واضحة للعالم مع حدود الدول"
       />
       <div className="flat-continent-labels" aria-hidden="true">
         {CONTINENTS.map((continent) => (
@@ -332,6 +332,8 @@ function GeoMap({
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.setClearColor(0x02070d, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.16;
     renderer.domElement.className = "globe-canvas";
     host.appendChild(renderer.domElement);
     camera.position.set(0, 0, 2.75);
@@ -351,22 +353,29 @@ function GeoMap({
     sun.position.set(-3.5, 2.7, 4.5);
     rim.position.set(4, -1.5, -3);
     scene.add(hemisphere, sun, rim);
-    const texture = new THREE.TextureLoader().load(
-      "/assets/political-world.png?v=2",
-      () => setReady(true),
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.onLoad = () => setReady(true);
+    const textureLoader = new THREE.TextureLoader(loadingManager);
+    const texture = textureLoader.load(
+      "/assets/terrain-political-world.png?v=3",
     );
+    const reliefTexture = textureLoader.load("/assets/terrain-relief.png?v=3");
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    reliefTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     const earth = new THREE.Mesh(
       new THREE.SphereGeometry(1, 128, 80),
       new THREE.MeshStandardMaterial({
         map: texture,
-        bumpMap: texture,
-        bumpScale: 0.018,
-        roughness: 0.72,
-        metalness: 0.06,
-        emissive: new THREE.Color(0x041019),
-        emissiveIntensity: 0.22,
+        bumpMap: reliefTexture,
+        bumpScale: 0.085,
+        displacementMap: reliefTexture,
+        displacementScale: 0.026,
+        displacementBias: -0.007,
+        roughness: 0.8,
+        metalness: 0.025,
+        emissive: new THREE.Color(0x02090d),
+        emissiveIntensity: 0.1,
       }),
     );
     earth.rotation.y = -0.02;
@@ -550,6 +559,7 @@ function GeoMap({
       renderer.domElement.removeEventListener("pointerup", up);
       controls.dispose();
       texture.dispose();
+      reliefTexture.dispose();
       earth.geometry.dispose();
       (earth.material as THREE.Material).dispose();
       atmosphere.geometry.dispose();
