@@ -830,26 +830,37 @@ function ImageCard({ challenge }: { challenge: any }) {
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const [scale, setScale] = useState(1);
+  const [retryKey, setRetryKey] = useState(0);
   useEffect(() => {
     setFailed(false);
     setOpen(false);
     setScale(1);
+    setRetryKey(0);
   }, [challenge.id]);
+  const imageUrl = `${challenge.image}${challenge.image.includes("?") ? "&" : "?"}try=${retryKey}`;
   return (
     <>
       <div className="challenge-image">
         {!failed && (
           <img
-            src={challenge.image}
+            src={imageUrl}
             alt={challenge.title}
             onError={() => setFailed(true)}
           />
         )}
         <div className={`image-fallback ${failed ? "visible" : ""}`}>
           <span>⌖</span>
-          <b>تعذر تحميل الصورة، اضغط للمحاولة مجددًا</b>
+          <b>تعذر تحميل صورة هذا التحدي</b>
+          <small>اضغط لإعادة المحاولة</small>
           {failed && (
-            <button onClick={() => setFailed(false)}>إعادة التحميل</button>
+            <button
+              onClick={() => {
+                setFailed(false);
+                setRetryKey((value) => value + 1);
+              }}
+            >
+              إعادة التحميل
+            </button>
           )}
         </div>
         {!failed && (
@@ -862,7 +873,7 @@ function ImageCard({ challenge }: { challenge: any }) {
           </button>
         )}
         <div className="image-shade" />
-        <h2>{challenge.title}</h2>
+        {!failed && <h2>{challenge.title}</h2>}
       </div>
       {open &&
         createPortal(
@@ -885,7 +896,7 @@ function ImageCard({ challenge }: { challenge: any }) {
             </div>
             <div className="viewer-stage" onClick={(e) => e.stopPropagation()}>
               <img
-                src={challenge.image}
+                src={imageUrl}
                 alt={challenge.title}
                 style={{ transform: `scale(${scale})` }}
               />
@@ -934,7 +945,8 @@ function HintsStage({
   api: (a: string, d?: any) => Promise<any>;
 }) {
   const [hintLeft, setHintLeft] = useState(0),
-    automatic = state.playType === "individual";
+    automatic = state.playType === "individual",
+    totalHints = state.challenge.hintTotal || 4;
   useEffect(() => {
     if (!state.nextHintAt) {
       setHintLeft(0);
@@ -963,7 +975,7 @@ function HintsStage({
           <p>{h}</p>
         </article>
       ))}
-      {automatic && state.hintCount < 4 && (
+      {automatic && state.hintCount < totalHints && (
         <div className="hint-auto-clock" aria-live="polite">
           <i>{hintLeft}</i>
           <span>
@@ -977,12 +989,12 @@ function HintsStage({
       {!automatic && state.host && (
         <button
           className="primary next-hint"
-          disabled={state.hintCount >= 4}
+          disabled={state.hintCount >= totalHints}
           onClick={() => api("nextHint")}
         >
-          {state.hintCount >= 4
+          {state.hintCount >= totalHints
             ? "ظهرت جميع التلميحات"
-            : `إظهار التلميح التالي · ${state.hintCount}/4`}
+            : `إظهار التلميح التالي · ${state.hintCount}/${totalHints}`}
         </button>
       )}
     </div>

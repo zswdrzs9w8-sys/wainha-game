@@ -53,6 +53,10 @@ input:focus-visible {
   background: var(--void) url("/assets/earth-command-center.png") center
     bottom/cover fixed no-repeat;
 }
+.game-shell {
+  overflow-x: hidden;
+  overflow-y: visible;
+}
 .site-shell:before,
 .game-shell:before {
   content: "";
@@ -1118,6 +1122,10 @@ input:focus-visible {
 .image-fallback b {
   font-size: 13px;
 }
+.image-fallback small {
+  color: #88a7b6;
+  font-size: 10px;
+}
 .image-fallback button {
   padding: 9px 15px;
   border: 1px solid var(--cyan);
@@ -1267,6 +1275,11 @@ input:focus-visible {
     radial-gradient(circle at 80% 0, rgba(31, 133, 180, 0.2), transparent 38%),
     rgba(5, 19, 31, 0.9);
   min-height: 660px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--cyan2) rgba(7, 25, 39, 0.7);
+  scrollbar-width: thin;
   clip-path: polygon(
     0 0,
     calc(100% - 24px) 0,
@@ -1275,6 +1288,17 @@ input:focus-visible {
     24px 100%,
     0 calc(100% - 24px)
   );
+}
+.hints-stage::-webkit-scrollbar {
+  width: 9px;
+}
+.hints-stage::-webkit-scrollbar-track {
+  background: rgba(7, 25, 39, 0.72);
+}
+.hints-stage::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--cyan), var(--cyan2));
+  border: 2px solid rgba(7, 25, 39, 0.72);
+  border-radius: 12px;
 }
 .hints-stage h1 {
   font-size: 52px;
@@ -1358,8 +1382,12 @@ input:focus-visible {
   font-size: 9px;
 }
 .next-hint {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   margin: 18px 0 0;
   min-width: 260px;
+  box-shadow: 0 -12px 30px rgba(3, 13, 22, 0.85);
 }
 .next-hint:disabled {
   opacity: 0.5;

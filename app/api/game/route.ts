@@ -171,6 +171,7 @@ function publicView(room: Room, auth: string) {
       title: q.title,
       image: q.image,
       hints: (q.hints || []).slice(0, room.hintCount || 1),
+      hintTotal: q.hints?.length || 0,
       story: reveal ? q.story : undefined,
       place: reveal ? q.place : undefined,
       country: reveal ? q.country : undefined,
@@ -204,8 +205,13 @@ function choose(room: Room) {
       (q) => challengeDifficulty(q) === (room.difficulty || "medium"),
     ),
     all = byLevel.length ? byLevel : byMode,
-    pool = all.filter((q) => !room.used.includes(q.id)),
-    source = pool.length ? pool : all;
+    preferredUnseen = all.filter((q) => !room.used.includes(q.id)),
+    anyUnseen = byMode.filter((q) => !room.used.includes(q.id)),
+    source = preferredUnseen.length
+      ? preferredUnseen
+      : anyUnseen.length
+        ? anyUnseen
+        : all;
   const q = source[Math.floor(Math.random() * source.length)],
     now = Date.now();
   room.challengeId = q.id;
