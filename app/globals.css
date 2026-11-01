@@ -1304,6 +1304,22 @@ input:focus-visible {
   font-size: 52px;
   font-weight: 500;
 }
+.hints-list {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cyan2) rgba(7, 25, 39, 0.7);
+}
+.hints-list::-webkit-scrollbar {
+  width: 8px;
+}
+.hints-list::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: linear-gradient(var(--cyan), var(--cyan2));
+}
 .hint {
   display: grid;
   grid-template-columns: 55px 1fr;
@@ -2304,6 +2320,54 @@ input:focus-visible {
   height: calc(100vh - 130px);
   min-height: 590px;
 }
+.team-challenge > .hints-stage {
+  display: flex;
+  flex-direction: column;
+  padding: 26px 24px 20px;
+  overflow: hidden;
+}
+.team-challenge > .hints-stage h1 {
+  margin: 6px 0 10px;
+  font-size: clamp(30px, 3vw, 44px);
+  line-height: 1.12;
+}
+.team-challenge > .hints-stage .country-rule,
+.team-challenge > .hints-stage .single-attempt-rule {
+  margin: 0 0 7px;
+  padding: 6px 8px;
+  font-size: 9px;
+  line-height: 1.45;
+}
+.team-challenge > .hints-stage .hints-list {
+  flex: 1;
+  grid-template-columns: 1fr 1fr;
+  align-content: start;
+  margin-top: 5px;
+  padding-left: 4px;
+}
+.team-challenge > .hints-stage .hint {
+  grid-template-columns: 32px 1fr;
+  gap: 8px;
+  min-height: 76px;
+  margin: 0;
+  padding: 9px;
+}
+.team-challenge > .hints-stage .hint i {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+.team-challenge > .hints-stage .hint p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.team-challenge > .hints-stage .next-hint {
+  position: static;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  margin-top: 10px;
+}
 .team-map-panel {
   position: relative;
 }
@@ -3121,8 +3185,11 @@ input:focus-visible {
   }
   .team-challenge > .challenge-image,
   .team-challenge > .hints-stage {
-    height: 330px;
-    min-height: 330px;
+    height: min(560px, calc(100vh - 110px));
+    min-height: 420px;
+  }
+  .team-challenge > .hints-stage .hints-list {
+    grid-template-columns: 1fr 1fr;
   }
   .team-map-panel .geo-map {
     height: 560px;
@@ -3138,6 +3205,17 @@ input:focus-visible {
   }
 }
 @media (max-width: 700px) {
+  .team-challenge > .hints-stage {
+    height: min(620px, calc(100vh - 80px));
+    min-height: 470px;
+    padding: 18px 14px 14px;
+  }
+  .team-challenge > .hints-stage .hints-list {
+    grid-template-columns: 1fr;
+  }
+  .team-challenge > .hints-stage .hint {
+    min-height: 58px;
+  }
   .team-name-grid,
   .guide-gallery,
   .play-guides,

@@ -946,7 +946,8 @@ function HintsStage({
 }) {
   const [hintLeft, setHintLeft] = useState(0),
     automatic = state.playType === "individual",
-    totalHints = state.challenge.hintTotal || 4;
+    totalHints = state.challenge.hintTotal || 4,
+    hintsListRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!state.nextHintAt) {
       setHintLeft(0);
@@ -958,6 +959,12 @@ function HintsStage({
     const timer = setInterval(update, 250);
     return () => clearInterval(timer);
   }, [state.nextHintAt]);
+  useEffect(() => {
+    const list = hintsListRef.current;
+    const newest = list?.lastElementChild;
+    if (!newest) return;
+    newest.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [state.challenge.hints.length]);
   return (
     <div className="hints-stage">
       <span className="eyebrow">اكتشف المدينة</span>
@@ -969,12 +976,14 @@ function HintsStage({
         محاولة واحدة فقط لكل {state.playType === "teams" ? "مجموعة" : "لاعب"}
         ؛ بعد تثبيت الدبوس لا يمكن تغييره
       </div>
-      {state.challenge.hints.map((h: string, i: number) => (
-        <article key={i} className="hint">
-          <i>{i + 1}</i>
-          <p>{h}</p>
-        </article>
-      ))}
+      <div className="hints-list" ref={hintsListRef} aria-live="polite">
+        {state.challenge.hints.map((h: string, i: number) => (
+          <article key={i} className="hint">
+            <i>{i + 1}</i>
+            <p>{h}</p>
+          </article>
+        ))}
+      </div>
       {automatic && state.hintCount < totalHints && (
         <div className="hint-auto-clock" aria-live="polite">
           <i>{hintLeft}</i>
