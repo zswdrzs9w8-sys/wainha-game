@@ -279,7 +279,9 @@ function finishRound(room: Room) {
     winner: sorted[0]?.playerId || null,
     bestDistance: sorted[0]?.distance ?? null,
   });
-  room.phase = room.round >= room.rounds ? "finished" : "results";
+  // Always reveal the completed round first, including the final round.
+  // The host advances to the final standings from the results screen.
+  room.phase = "results";
   room.deadline = null;
 }
 function maybeFinish(room: Room) {
@@ -491,8 +493,13 @@ export async function POST(req: NextRequest) {
     } else if (action === "next") {
       if (!host || room.phase !== "results")
         return fail("لا يمكن بدء الجولة التالية", 409);
-      room.round += 1;
-      choose(room);
+      if (room.round >= room.rounds) {
+        room.phase = "finished";
+        room.deadline = null;
+      } else {
+        room.round += 1;
+        choose(room);
+      }
     } else return fail("إجراء غير معروف", 404);
     await save(room);
     return NextResponse.json(publicView(room, auth));
